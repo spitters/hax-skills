@@ -1,0 +1,30 @@
+---
+name: hax-rust
+description: |
+  Generate Rust code that compiles and passes the Hax type checker for formal verification extraction.
+  Use when:
+  (1) Writing Rust code for Hax extraction to Lean 4/F*/Coq/ProVerif
+  (2) Creating formally verifiable cryptographic implementations
+  (3) Converting regular Rust to Hax-compatible Rust
+  (4) Building high-assurance security software
+
+  This skill works as a layer ON TOP of rust-analyzer (not replacing it).
+  Hax accepts a subset of Safe Rust with specific restrictions.
+version: 2.0.0
+dependencies:
+  - rust-analyzer-lsp  # For code intelligence
+  - lean-lsp-mcp       # Optional: for Lean proof development
+tools:
+  - hax_syntax_check   # Fast tree-sitter validation
+  - hax_cargo_check    # Full cargo hax validation
+  - hax_extract        # Extract to proof backends
+triggers:
+  - "hax"
+  - "formal verification"
+  - "extractable rust"
+  - "proof assistant"
+  - "verified cryptography"
+---
+
+<!-- Include main documentation -->
+{{SKILL.md}}
