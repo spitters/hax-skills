@@ -658,17 +658,15 @@ use hax_lib as hax;
 /// Sum with loop invariant
 pub fn sum_array<const N: usize>(arr: &[u32; N]) -> u32 {
     let mut sum = 0u32;
-    let mut i = 0usize;
-    
-    #[hax::loop_invariant(|sum, i| {
-        i <= N &&
-        sum == arr[0..i].iter().fold(0u32, |a, &b| a.wrapping_add(b))
-    })]
-    while i < N {
+
+    for i in 0..N {
+        hax_lib::loop_invariant!(|i: usize| {
+            i <= N &&
+            sum == arr[0..i].iter().fold(0u32, |a, &b| a.wrapping_add(b))
+        });
         sum = sum.wrapping_add(arr[i]);
-        i = i.wrapping_add(1);
     }
-    
+
     sum
 }
 
@@ -678,20 +676,22 @@ where
     [(); N]: ,  // N > 0 requirement
 {
     let mut max = arr[0];
-    let mut i = 1usize;
-    
-    #[hax::loop_invariant(|max, i| {
-        i <= N &&
-        arr[0..i].iter().all(|&x| x <= max) &&
-        arr[0..i].iter().any(|&x| x == max)
-    })]
-    while i < N {
+
+    for i in 1..N {
+        hax_lib::loop_invariant!(|i: usize| {
+            i <= N &&
+            arr[0..i].iter().all(|&x| x <= max) &&
+            arr[0..i].iter().any(|&x| x == max)
+        });
         if arr[i] > max {
             max = arr[i];
         }
-        i = i.wrapping_add(1);
     }
-    
+
     max
 }
 ```
+
+The invariant is a function-like macro on the first line of the loop body,
+taking the loop variable as its argument; other loop-carried variables are
+referenced from the enclosing scope.

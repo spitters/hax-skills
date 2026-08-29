@@ -1,6 +1,7 @@
 # Lean 4 Integration for Hax
 
-This document describes how to work with Hax-extracted Lean 4 code, including tooling setup and proof workflows.
+This document describes how to extract hax-compatible Rust to Lean 4, build the
+result, and prove properties about it.
 
 ## Overview
 
@@ -11,16 +12,19 @@ This document describes how to work with Hax-extracted Lean 4 code, including to
 │                 │     │                 │     │                 │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
     cargo hax            lean-lsp-mcp           lean4-theorem-
-    into lean4           for feedback           proving skill
+    into lean            for feedback           proving skill
 ```
 
 ## Prerequisites
 
 ### 1. Install Hax
 
+Hax requires the Rust nightly pinned in its `rust-toolchain.toml`; `cargo hax`
+selects it through that file, so the commands below need no explicit `+nightly`
+override.
+
 ```bash
-# Requires Rust nightly
-cargo +nightly install --git https://github.com/cryspen/hax hax-engine
+git clone https://github.com/cryspen/hax && cd hax && ./setup.sh
 ```
 
 ### 2. Install Lean 4
@@ -33,6 +37,10 @@ curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf 
 lean --version
 lake --version
 ```
+
+The Lean toolchain for a project is pinned by its `lean-toolchain` file; use the
+version that hax-lib's Lean library declares so the extracted code and the library
+elaborate under the same compiler.
 
 ### 3. Install lean-lsp-mcp (for Claude integration)
 
@@ -55,43 +63,54 @@ claude mcp add lean-lsp uvx lean-lsp-mcp
 }
 ```
 
+The server describes its own tools (goal state, diagnostics, lemma search,
+multi-tactic attempts, profiling) in the instructions it sends the client; consult
+those rather than a copy here.
+
 ### 4. Optional: Install lean4-theorem-proving skill
 
 The [lean4-theorem-proving skill](https://github.com/cameronfreer/lean4-theorem-proving-skill) provides Claude with specialized tactics knowledge.
 
-## Extraction Workflow
+## Extraction Workflows
 
-### Step 1: Prepare Rust Code
+### Standard Lean Backend
 
-Ensure your code passes `cargo hax check`:
+#### Step 1: Check the Rust Code with the Hax Frontend
 
 ```bash
-# Quick syntax check (if using hax-treesitter)
-python hax_lint.py src/lib.rs
-
-# Full Hax validation
-cargo hax check
+# Frontend only: reports unsupported constructs without running a backend
+cargo hax json
 ```
 
-### Step 2: Extract to Lean 4
+#### Step 2: Extract to Lean 4
 
 ```bash
 # Extract entire crate
-cargo hax into lean4
+cargo hax into lean
 
 # Extract specific modules
-cargo hax into lean4 --include my_module
-
-# Specify output directory
-cargo hax into lean4 -o proofs/lean
+cargo hax -i "+my_module::**" into lean
 ```
 
-### Step 3: Build Extracted Code
+#### Step 3: Build Extracted Code
 
 ```bash
 cd proofs/lean
 lake build
 ```
+
+### Lean-Refines Backend (Dual Pure/Imperative)
+
+The `lean-refines` backend generates both pure functional and imperative (StateM)
+definitions, plus equivalence proofs. It lives on a fork of hax, not in the
+upstream release. See `references/LEAN_REFINES_BACKEND.md` for details.
+
+```bash
+cargo hax into lean-refines
+# Output: proofs/lean-refines/extraction/<Crate_name>.lean
+```
+
+Each Rust function `f` produces 3 declarations: `f_pure`, `f_state`, `f_equiv`.
 
 ## Understanding Extracted Code
 
@@ -103,7 +122,7 @@ lake build
 | `i8`, `i16`, `i32`, `i64` | `Int8`, `Int16`, `Int32`, `Int64` |
 | `usize` | `USize` |
 | `bool` | `Bool` |
-| `[T; N]` | `Array T N` or `Vector T N` |
+| `[T; N]` | `Vector T N` |
 | `(T1, T2)` | `T1 × T2` |
 | `Option<T>` | `Option T` |
 | `Result<T, E>` | `Except E T` |
@@ -163,36 +182,6 @@ theorem divide_spec (a b : UInt32) (h : b ≠ 0) :
   sorry  -- Proof obligation
 ```
 
-## lean-lsp-mcp Tools
-
-The lean-lsp-mcp provides these tools for interactive proof development:
-
-### Diagnostic Tools
-
-| Tool | Purpose |
-|------|---------|
-| `lean_file_outline` | Get file structure (imports, definitions) |
-| `lean_diagnostic_messages` | Get all errors, warnings |
-| `lean_goal` | Get proof state at position |
-| `lean_hover_info` | Get type/documentation for symbol |
-
-### Search Tools
-
-| Tool | Purpose |
-|------|---------|
-| `lean_leansearch` | Natural language theorem search |
-| `lean_loogle` | Type-based lemma search |
-| `lean_local_search` | Search project + stdlib |
-| `lean_hammer_premise` | Auto-discover relevant premises |
-
-### Execution Tools
-
-| Tool | Purpose |
-|------|---------|
-| `lean_run_code` | Execute isolated Lean code |
-| `lean_multi_attempt` | Try multiple tactics in parallel |
-| `lean_profile_proof` | Find slow tactics |
-
 ## Common Proof Patterns
 
 ### Proving Arithmetic Properties
@@ -200,7 +189,6 @@ The lean-lsp-mcp provides these tools for interactive proof development:
 ```lean
 -- Extracted from Rust: commutativity of wrapping add
 theorem add_comm (a b : UInt32) : a + b = b + a := by
-  -- UInt32 addition is commutative by definition
   simp [UInt32.add_comm]
 
 -- Associativity
@@ -211,17 +199,13 @@ theorem add_assoc (a b c : UInt32) : (a + b) + c = a + (b + c) := by
 ### Proving Array Bounds
 
 ```lean
--- Proving array access is safe
-theorem array_access_safe {n : Nat} (arr : Array UInt8 n) (i : Nat) (h : i < n) :
+-- Array access with an in-bounds proof
+theorem array_access_safe {n : Nat} (arr : Vector UInt8 n) (i : Nat) (h : i < n) :
   ∃ v, arr[i]'h = v := by
   exact ⟨arr[i]'h, rfl⟩
-
--- Loop invariant preservation
-theorem sum_loop_invariant (arr : Array UInt32 n) (i : Nat) (acc : UInt32)
-  (h : i ≤ n) : i ≤ n := h
 ```
 
-### Using lean_multi_attempt
+### Trying several tactics at once
 
 When stuck on a proof, use the MCP tool to try multiple tactics:
 
@@ -234,9 +218,7 @@ Input: {
 }
 ```
 
-### Using lean_leansearch
-
-For finding relevant lemmas:
+### Finding lemmas
 
 ```
 Tool: lean_leansearch
@@ -288,7 +270,7 @@ name = "MyProject"
 
 ```bash
 # Extract
-cargo hax into lean4 -o proofs/lean/MyProject/Extracted.lean
+cargo hax into lean --output-dir proofs/lean/MyProject
 
 # Build
 cd proofs/lean
@@ -297,12 +279,10 @@ lake build
 
 ### 2. Check for Sorries
 
-The extraction may include `sorry` placeholders for unproven obligations:
-
-```bash
-# Find all sorries
-grep -r "sorry" proofs/lean/
-```
+The extraction may include `sorry` placeholders for unproven obligations. Lean
+reports each one during the build; check the `lake build` output for
+`declaration uses 'sorry'` warnings. A text search over the sources also matches
+comments and is not a substitute.
 
 ### 3. Prove Obligations
 
@@ -327,7 +307,7 @@ end MyProject
 
 ```bash
 lake build
-# Success = all proofs type-check
+# Success = all proofs type-check and no sorry warnings remain
 ```
 
 ## Tips for Proving Extracted Code
@@ -362,6 +342,16 @@ theorem field_identity (x y : Int) : (x + y)^2 = x^2 + 2*x*y + y^2 := by ring
 ```lean
 example : (1000000 : Nat) < 2000000 := by native_decide
 ```
+
+`native_decide` trusts the compiler; prefer `decide` or `bv_decide` where they
+finish.
+
+## Panic-Freedom Proofs
+
+The `lean` backend states panic freedom as Hoare triples over `RustM`. The
+decision procedures that close them (`mvcgen`, `omega`, `grind`, `hax_bv_decide`
+from hax-lib's `Tactic/HaxBVDecide.lean`, exhaustive `native_decide`) and the
+three-pass overflow pattern are described in `references/PANIC_FREEDOM.md`.
 
 ## Troubleshooting
 

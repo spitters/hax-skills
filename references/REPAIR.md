@@ -6,7 +6,7 @@ Guide for fixing Rust code that fails Hax type checking. This subskill takes pro
 
 1. **Identify error category** from Hax output
 2. **Apply targeted fix** from patterns below
-3. **Verify fix** with `cargo hax check`
+3. **Verify fix** with `cargo hax json` (frontend only) or `cargo hax into <backend>`
 4. **Iterate** until all errors resolved
 
 ## Error Categories and Fixes
@@ -367,20 +367,24 @@ fn find_pattern(data: &[u8; 1024]) -> usize {
     i
 }
 
-// ✅ FIXED - Add explicit bound
+// ✅ FIXED (preferred) - Bounded for loop with early return
 fn find_pattern(data: &[u8; 1024]) -> usize {
-    let mut i = 0usize;
-    while i < 1024 && data[i] != 0xFF {
-        i = i.wrapping_add(1);
+    for i in 0..1024 {
+        if data[i] == 0xFF {
+            return i;
+        }
     }
-    i
+    1024
 }
 
-// ✅ FIXED - Add loop invariant
+// ✅ FIXED (accepted) - Bounded while loop with an invariant on the
+// first line of the body. Hax accepts `while`; the bounded `for` form
+// above is preferred because the backends prove termination and
+// invariants for it with less effort.
 fn find_pattern_inv(data: &[u8; 1024]) -> usize {
     let mut i = 0usize;
-    #[hax::loop_invariant(|i| i <= 1024)]
     while i < 1024 {
+        hax_lib::loop_invariant!(|i: usize| i <= 1024);
         if data[i] == 0xFF {
             return i;
         }
@@ -403,17 +407,32 @@ fn skip_zeros(data: &[u8; 32]) -> usize {
     0
 }
 
-// ✅ FIXED - Use while loop
+// ✅ FIXED (preferred) - Keep the bounded for loop; carry the skip in a
+// separate state variable instead of modifying the loop variable
 fn skip_zeros(data: &[u8; 32]) -> usize {
+    let mut next = 0usize;
+    for i in 0..32 {
+        if i >= next && data[i] != 0 {
+            next = i.wrapping_add(5);
+        }
+    }
+    next
+}
+
+// ✅ FIXED (accepted) - A while loop with an explicit bound. Hax accepts
+// this form; prefer the bounded for loop when the stride can be expressed
+// without modifying the index.
+fn skip_zeros_while(data: &[u8; 32]) -> usize {
     let mut i = 0usize;
     while i < 32 {
+        hax_lib::loop_invariant!(|i: usize| i <= 36);
         if data[i] != 0 {
             i = i.wrapping_add(5);
         } else {
             i = i.wrapping_add(1);
         }
     }
-    0
+    i
 }
 ```
 
@@ -467,11 +486,14 @@ fn process<T: Clone + Copy>(value: T) -> T {
 
 ## Systematic Repair Process
 
-### Step 1: Run Hax Check
+### Step 1: Run the Hax Frontend
 
 ```bash
-cargo hax check 2>&1 | tee hax-errors.log
+cargo hax json 2>&1 | tee hax-errors.log
 ```
+
+`cargo hax json` runs the frontend without a backend; backend-specific
+errors appear only under `cargo hax into <backend>`.
 
 ### Step 2: Parse Errors
 
@@ -494,7 +516,7 @@ Look for these patterns in output:
 
 ```bash
 # After each fix
-cargo hax check
+cargo hax json
 
 # Full extraction test
 cargo hax into fstar
@@ -527,8 +549,8 @@ cargo build
 # 2. Tests still pass  
 cargo test
 
-# 3. Hax accepts the code
-cargo hax check
+# 3. The hax frontend accepts the code
+cargo hax json
 
 # 4. Full extraction works
 cargo hax into fstar

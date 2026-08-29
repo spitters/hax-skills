@@ -35,6 +35,9 @@ env/
 .DS_Store
 Thumbs.db
 
+# Local machine-specific configuration (not committed)
+hax-local.md
+
 # Rust build artifacts (if any examples are compiled)
 target/
 Cargo.lock

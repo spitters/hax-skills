@@ -1,58 +1,63 @@
 # Hax Skills
 
-Claude skills and tooling for writing Hax-compatible Rust code that can be extracted to formal verification backends (Lean 4, F*, Coq, ProVerif).
+Claude skill and tooling for writing Rust in the hax subset, extractable to
+formal verification backends (F*, Lean 4, Coq/SSProve, EasyCrypt, ProVerif).
 
 ## Contents
 
 ### Skill (`hax-rust`)
 
-The main skill for generating Hax-compatible Rust code:
-
-- `SKILL.md` - Main documentation and quick reference
-- `LEAN_INTEGRATION.md` - Lean 4 proof workflow
-- `references/` - Detailed restrictions, repair patterns, code patterns
-- `examples/` - Standalone examples (field arithmetic in Rust + Lean)
+- `SKILL.md` — the skill: frontmatter, quick reference, coding rules, workflow
+- `LEAN_INTEGRATION.md` — Lean 4 proof workflow over extracted code
+- `references/` — restrictions, repair patterns, code patterns, the
+  `lean-refines` backend
+- `examples/` — standalone examples (field arithmetic in Rust + Lean)
+- `hax-local.md` — per-machine paths and build instructions; gitignored, create
+  your own
 
 ### Tooling (`hax-treesitter/`)
 
-Fast tree-sitter based linting for instant feedback:
+Tree-sitter linting for feedback before the hax frontend runs:
 
 ```bash
-# Install
 pip install -e hax-treesitter/
-
-# Use
 hax-lint src/*.rs
 hax-lint --summary src/
 ```
 
-Catches ~80% of Hax violations in <100ms (vs 5-30s for `cargo hax check`).
+The linter is syntax-level; `cargo hax json` is the frontend check and
+`cargo hax into <backend>` the full extraction.
 
 ## Installation
 
 ### Skill
 
-Copy the skill files to your Claude skills directory or reference them directly.
+Copy the skill directory into your Claude skills directory or reference it
+directly.
 
-### Tree-sitter Linter
+### Tree-sitter linter
 
 ```bash
 cd hax-treesitter
 pip install -e .
 ```
 
-### MCP Server (for Claude Code)
+This installs the `hax-lint` and `hax-mcp-server` scripts.
+
+### MCP server (Claude Code)
 
 ```bash
+claude mcp add hax-tools hax-mcp-server
+# or, without installing the package:
 claude mcp add hax-tools python /path/to/hax-skills/hax-treesitter/hax_treesitter/mcp_server.py
 ```
 
 ## Integration with Lean
 
-For extracted code verification, install:
+For proofs over extracted code, install:
 
-- [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) - Lean 4 language server MCP
-- [lean4-theorem-proving-skill](https://github.com/cameronfreer/lean4-theorem-proving-skill) - Proof tactics skill
+- [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp) — Lean 4 language server MCP
+- [lean4-theorem-proving-skill](https://github.com/cameronfreer/lean4-theorem-proving-skill) — proof tactics skill
 
 ## Architecture
 
@@ -65,9 +70,9 @@ For extracted code verification, install:
 ├─────────┼───────────────────────────────────────────────────┤
 │         │           HAX SKILL                               │
 │  ┌──────┴─────────────────────────────────────────────┐    │
-│  │  • hax-treesitter (instant validation)             │    │
-│  │  • cargo hax (full validation)                     │    │
-│  │  • Extraction to Lean 4                            │    │
+│  │  • hax-treesitter (syntax-level lint)              │    │
+│  │  • cargo hax json / into (frontend, extraction)    │    │
+│  │  • Extraction to Lean 4 and the other backends     │    │
 │  └──────┬─────────────────────────────────────────────┘    │
 ├─────────┼───────────────────────────────────────────────────┤
 │         │        RUST ANALYZER LSP                          │

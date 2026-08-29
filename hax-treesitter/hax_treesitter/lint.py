@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
-hax_lint.py - Tree-sitter based Hax restriction checker
+Tree-sitter based pre-check for hax restriction violations.
 
 Usage:
-    python hax_lint.py <file.rs>
-    python hax_lint.py --json <file.rs>
-    python hax_lint.py --summary <file.rs>
+    hax-lint <file.rs>...
+    hax-lint --json <file.rs>...
+    hax-lint --summary <file.rs>...
+    hax-lint --include-tests <file.rs>...
+
+Findings inside `#[cfg(test)]` modules and `#[test]` functions are
+suppressed unless `--include-tests` is given, since hax does not extract
+test code.
 
 Requirements:
     pip install tree-sitter tree-sitter-rust
@@ -14,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from dataclasses import dataclass
@@ -167,12 +173,44 @@ MESSAGES = {
 }
 
 
+# Attributes marking items that hax does not extract.
+_CFG_TEST_RE = re.compile(r"^#!?\[\s*cfg\s*\((.*)\)\s*\]$", re.DOTALL)
+_TEST_ATTR_RE = re.compile(r"^#\[\s*(?:[A-Za-z_][A-Za-z0-9_]*::)*test\s*(?:\(.*\))?\s*\]$", re.DOTALL)
+_TEST_WORD_RE = re.compile(r"\btest\b")
+
+
+def _is_test_attribute(text: str) -> bool:
+    """Whether an attribute marks test-only code (`#[cfg(test)]` or `#[test]`)."""
+    m = _CFG_TEST_RE.match(text)
+    if m and _TEST_WORD_RE.search(m.group(1)):
+        return True
+    return bool(_TEST_ATTR_RE.match(text))
+
+
+def _test_ranges(root) -> list[tuple[int, int]]:
+    """Byte ranges of items carrying a test attribute (modules, functions, impls)."""
+    ranges: list[tuple[int, int]] = []
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node.type in ("mod_item", "function_item", "impl_item", "struct_item", "enum_item"):
+            sib = node.prev_named_sibling
+            while sib is not None and sib.type in ("attribute_item", "line_comment", "block_comment"):
+                if sib.type == "attribute_item" and _is_test_attribute(sib.text.decode("utf-8", "replace")):
+                    ranges.append((node.start_byte, node.end_byte))
+                    break
+                sib = sib.prev_named_sibling
+        stack.extend(node.children)
+    return ranges
+
+
 class HaxLinter:
     """Tree-sitter based Hax restriction linter."""
 
-    def __init__(self, query_path: Path | None = None):
+    def __init__(self, query_path: Path | None = None, include_tests: bool = False):
         self.language = Language(ts_rust.language())
         self.parser = Parser(self.language)
+        self.include_tests = include_tests
 
         # Load query from file or use default location
         if query_path is None:
@@ -188,6 +226,7 @@ class HaxLinter:
         """Process query captures and yield violations."""
         cursor = QueryCursor(self.query)
         matches = cursor.matches(tree.root_node)
+        skip = [] if self.include_tests else _test_ranges(tree.root_node)
 
         for _pattern_index, captures_dict in matches:
             for capture_name, nodes in captures_dict.items():
@@ -209,6 +248,8 @@ class HaxLinter:
                 message = MESSAGES.get(capture_name, f"Hax restriction: {category}")
 
                 for node in nodes:
+                    if any(a <= node.start_byte < b for a, b in skip):
+                        continue
                     # Get source code snippet
                     try:
                         code = node.text.decode("utf-8")
@@ -267,11 +308,16 @@ def main():
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument("--errors-only", action="store_true", help="Show only errors, not warnings")
     parser.add_argument("--query", type=Path, help="Path to custom query file")
+    parser.add_argument(
+        "--include-tests",
+        action="store_true",
+        help="Also report findings inside #[cfg(test)] modules and #[test] functions",
+    )
 
     args = parser.parse_args()
 
     try:
-        linter = HaxLinter(args.query)
+        linter = HaxLinter(args.query, include_tests=args.include_tests)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

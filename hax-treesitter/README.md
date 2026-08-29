@@ -1,96 +1,97 @@
-# Hax Tree-sitter Lint
+# hax-treesitter
 
-Fast, syntax-level validation of Hax-compatible Rust code using tree-sitter queries.
+Syntax-level pre-check for hax-compatible Rust, implemented as tree-sitter
+queries over the Rust grammar. It runs before `cargo hax json` (the hax
+frontend, which is the authoritative check) and reports constructs that the
+hax frontend rejects or that make functions partial.
 
-## Purpose
-
-Provides instant feedback on Hax restriction violations **before** running `cargo hax check`. Catches ~80% of common issues at the syntax level with sub-100ms latency.
-
-## What It Catches
+## What it checks
 
 | Category | Examples | Severity |
 |----------|----------|----------|
-| Unsafe code | `unsafe {}`, `unsafe fn`, `unsafe impl` | Error |
+| Unsafe code | `unsafe {}` | Error |
 | Raw pointers | `*const T`, `*mut T` | Error |
 | Trait objects | `dyn Trait`, `Box<dyn T>` | Error |
-| Heap allocation | `Vec`, `Box`, `String`, `HashMap` | Error |
+| Heap allocation | `Vec`, `Box`, `String`, `Rc`, `Arc`, `HashMap`, `HashSet`, `vec!`, `format!` | Error |
 | Unbounded loops | `loop {}`, `while cond {}` | Error |
-| Async/await | `async {}`, `.await` | Error |
-| Interior mutability | `Cell`, `RefCell`, `Mutex` | Error |
-| FFI | `extern "C"`, `#[no_mangle]` | Error |
+| Async/await | `.await` | Error |
+| Interior mutability | `Cell`, `RefCell`, `Mutex`, `RwLock` | Error |
+| Global mutable state | `static mut` | Error |
+| Unions, FFI | `union`, `extern "C" {}` | Error |
+| Atomics | `AtomicU32`, ... | Error |
 | Floating point | `f32`, `f64` | Warning |
-| Panicking | `panic!`, `.unwrap()`, `.expect()` | Warning |
-| I/O operations | `println!`, `std::io`, `std::fs` | Warning |
+| Panicking | `panic!`, `todo!`, `unimplemented!`, `unreachable!`, `.unwrap()`, `.expect()` | Warning |
+| I/O | `println!`, `print!`, `dbg!` | Warning |
+
+The full list is `hax_treesitter/queries/hax-lint.scm`; `tests/violations.rs`
+exercises every pattern and `tests/test_lint.py` pins the reported categories.
+
+Findings inside `#[cfg(test)]` modules and `#[test]` functions are suppressed
+by default, since hax does not extract test code. Pass `--include-tests` to
+report them.
 
 ## Installation
 
-### Requirements
-
-- tree-sitter CLI or library bindings
-- tree-sitter-rust grammar
-
-### Using tree-sitter CLI
-
 ```bash
-# Install tree-sitter CLI
-cargo install tree-sitter-cli
-
-# Clone tree-sitter-rust (if not already available)
-git clone https://github.com/tree-sitter/tree-sitter-rust
-
-# Run queries
-tree-sitter query hax-lint.scm path/to/file.rs --captures
+pip install "git+https://github.com/spitters/hax-skills#subdirectory=hax-treesitter"
 ```
 
-### Using Python bindings
+This installs the `hax-lint` and `hax-mcp-server` console scripts. Python
+3.10 or later, `tree-sitter >= 0.25` and `tree-sitter-rust >= 0.23` are
+required. For the MCP server add the `mcp` extra:
 
 ```bash
-pip install tree-sitter tree-sitter-rust
+pip install "hax-treesitter[mcp] @ git+https://github.com/spitters/hax-skills#subdirectory=hax-treesitter"
 ```
+
+## Usage
+
+```bash
+hax-lint src/lib.rs               # human-readable report; exit 1 on any error
+hax-lint --errors-only src/*.rs   # warnings suppressed (CI setting)
+hax-lint --json src/lib.rs        # machine-readable
+hax-lint --summary src/lib.rs     # counts by category
+hax-lint --include-tests src/lib.rs
+hax-lint --query my-queries.scm src/lib.rs
+```
+
+The exit code is 1 when at least one error is reported, otherwise 0.
+Warnings do not affect the exit code.
+
+From Python:
 
 ```python
-import tree_sitter_rust as ts_rust
-from tree_sitter import Language, Parser, Query
+from hax_treesitter.lint import HaxLinter
 
-parser = Parser(Language(ts_rust.language()))
-query = Query(Language(ts_rust.language()), open("queries/hax-lint.scm").read())
-
-tree = parser.parse(open("example.rs", "rb").read())
-captures = query.captures(tree.root_node)
-
-for node, name in captures:
-    print(f"{name}: line {node.start_point[0]+1}: {node.text.decode()}")
+for v in HaxLinter().lint_file(Path("src/lib.rs")):
+    print(v.line, v.severity, v.category, v.message)
 ```
 
-## Editor Integration
+## MCP server
 
-### Neovim (nvim-treesitter)
+`hax-mcp-server` (module `hax_treesitter.mcp_server`) exposes four tools over
+stdio:
 
-Copy `queries/hax-lint.scm` to your Neovim queries directory and configure highlights:
+- `hax_syntax_check(file_path | source, errors_only, include_tests)`: this pre-check.
+- `hax_frontend_check(crate_path, package)`: runs `cargo hax json`, the full
+  hax frontend without a backend.
+- `hax_extract(crate_path, backend, output_dir, modules)`: runs
+  `cargo hax into <backend>`; backends are `lean`, `lean-refines`, `fstar`,
+  `coq`, `ssprove`, `easycrypt`, `proverif`.
+- `hax_supported_features(category)`: a summary of supported and
+  unsupported Rust features.
 
-```lua
--- In after/queries/rust/highlights.scm or via setup
-vim.treesitter.query.set("rust", "hax-lint", [[
-  ;; ... contents of hax-lint.scm
-]])
+Registration with Claude Code:
+
+```bash
+claude mcp add hax-tools hax-mcp-server
 ```
 
-### Helix
+`cargo hax` is installed from https://github.com/cryspen/hax
+(`git clone https://github.com/cryspen/hax && cd hax && ./setup.sh`, or the
+Nix profile described in that README).
 
-Add queries to `~/.config/helix/runtime/queries/rust/`.
-
-### VSCode
-
-Use a tree-sitter extension that supports custom queries, or integrate via MCP.
-
-## MCP Integration
-
-See `mcp/` directory for Model Context Protocol server that exposes:
-
-- `hax_syntax_check(file_path)` - Returns list of violations
-- `hax_quick_fix(file_path, line)` - Suggests fixes for violations
-
-## Query Structure
+## Query structure
 
 Queries use tree-sitter's S-expression pattern matching:
 
@@ -102,57 +103,39 @@ Queries use tree-sitter's S-expression pattern matching:
 ((type_identifier) @error.heap_vec
   (#eq? @error.heap_vec "Vec"))
 
-;; Capture patterns with predicates
+;; Capture macro invocations by name
 ((macro_invocation
   macro: (identifier) @error.vec_macro)
   (#eq? @error.vec_macro "vec"))
 ```
 
-### Capture Naming Convention
+Capture names determine severity: `@error.*` is reported as an error,
+`@warning.*` as a warning. The messages are in `MESSAGES` in
+`hax_treesitter/lint.py`.
 
-- `@error.*` - Definite Hax extraction failure
-- `@warning.*` - Potential issue, verify with `cargo hax`
+The query file can also be used directly with the tree-sitter CLI or with an
+editor that loads custom queries (Neovim's `nvim-treesitter`, Helix).
 
 ## Limitations
 
-Tree-sitter is purely syntactic. These require `cargo hax check`:
+The check is purely syntactic. It does not see type information, macro
+expansions, feature gates, or other files, so it misses restrictions that
+depend on them (trait resolution, termination of `for` loops over
+non-range iterators, integer overflow) and it reports a type named `Vec`
+regardless of its origin. `cargo hax json` is the check to run before
+committing.
 
-- Type inference / trait resolution
-- Loop termination analysis
-- Integer overflow detection
-- Feature-gated code
-- Macro expansion analysis
-- Cross-file analysis
+## Development
 
-## Relationship to Other Tools
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Feedback Speed                          │
-│                                                             │
-│  hax-treesitter    rust-analyzer      cargo hax check       │
-│     <100ms            ~1-5s              5-30s              │
-│                                                             │
-│  ────────────────────────────────────────────────────────►  │
-│     Syntax only      + Types          + Full extraction     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-
-Use all three in combination:
-1. hax-treesitter for instant feedback while typing
-2. rust-analyzer for type checking and navigation
-3. cargo hax check before committing
+```bash
+pip install -e ".[dev]"
+python -m pytest tests -q
 ```
 
-## Contributing
-
-To add new patterns:
-
-1. Identify the Hax restriction
-2. Find the corresponding tree-sitter-rust node type
-3. Write a query pattern in `queries/hax-lint.scm`
-4. Add test cases in `tests/`
-5. Document in this README
+To add a pattern: write the query in `queries/hax-lint.scm`, add a message
+for its capture name to `MESSAGES` in `lint.py`, add a case to
+`tests/violations.rs`, and update `EXPECTED_CATEGORIES` in
+`tests/test_lint.py`.
 
 ## License
 

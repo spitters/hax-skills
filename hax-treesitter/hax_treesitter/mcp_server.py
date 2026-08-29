@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-hax_mcp_server.py - MCP server for Hax tooling
+MCP server exposing the hax tree-sitter pre-check and the cargo-hax frontend.
 
-Provides:
-- hax_syntax_check: Fast tree-sitter based validation
-- hax_cargo_check: Full cargo hax check
-- hax_extract: Extract to Lean4/Coq/F*
+Tools:
+- hax_syntax_check: tree-sitter pre-check for hax restriction violations
+- hax_frontend_check: `cargo hax json` (full frontend validation, no backend)
+- hax_extract: `cargo hax into <backend>`
+- hax_supported_features: summary of supported and unsupported Rust features
 
-Installation:
-    claude mcp add hax-tools uvx --from /path/to/hax-treesitter hax-mcp-server
+Installation (the package provides the `hax-mcp-server` console script):
+    pip install "hax-treesitter[mcp] @ git+https://github.com/spitters/hax-skills#subdirectory=hax-treesitter"
+    claude mcp add hax-tools hax-mcp-server
 
 Or in .claude/mcp.json:
     {
       "servers": {
         "hax-tools": {
           "command": "python",
-          "args": ["/path/to/hax-treesitter/mcp/hax_mcp_server.py"]
+          "args": ["-m", "hax_treesitter.mcp_server"]
         }
       }
     }
@@ -55,6 +57,19 @@ except ImportError:
 # Initialize server
 server = Server("hax-tools")
 
+# Backends accepted by `cargo hax into`. `lean-refines` is provided by the
+# cryspen/hax fork used by hax-lean.
+HAX_BACKENDS = ["lean", "lean-refines", "fstar", "coq", "ssprove", "easycrypt", "proverif"]
+
+# `cargo hax into` subcommand per backend name.
+_BACKEND_SUBCOMMAND = {b: b for b in HAX_BACKENDS}
+_BACKEND_SUBCOMMAND["proverif"] = "pro-verif"
+
+INSTALL_HINT = (
+    "Error: 'cargo hax' not found. Install per https://github.com/cryspen/hax: "
+    "git clone https://github.com/cryspen/hax && cd hax && ./setup.sh"
+)
+
 # Initialize linter (lazy)
 _linter: HaxLinter | None = None
 
@@ -73,8 +88,9 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="hax_syntax_check",
-            description="Fast syntax-level check for Hax restriction violations using tree-sitter. "
-                        "Catches ~80% of common issues in <100ms. Use before cargo hax check.",
+            description="Syntax-level check for hax restriction violations using tree-sitter. "
+                        "Run before hax_frontend_check; findings in #[cfg(test)] modules and "
+                        "#[test] functions are suppressed unless include_tests is set.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -90,14 +106,20 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "If true, only return errors, not warnings",
                         "default": False
+                    },
+                    "include_tests": {
+                        "type": "boolean",
+                        "description": "Also report findings inside test-only code",
+                        "default": False
                     }
                 },
             },
         ),
         Tool(
-            name="hax_cargo_check",
-            description="Run full 'cargo hax check' for complete Hax validation. "
-                        "Slower than syntax_check but catches all issues including semantic ones.",
+            name="hax_frontend_check",
+            description="Run 'cargo hax json' for full frontend validation of a crate "
+                        "(the frontend export without any backend). Slower than "
+                        "hax_syntax_check; reports what the frontend rejects.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -114,8 +136,8 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="hax_extract",
-            description="Extract Rust code to a proof assistant backend (Lean4, Coq, F*). "
-                        "Run hax_syntax_check and hax_cargo_check first to ensure code is extractable.",
+            description="Extract Rust code with 'cargo hax into <backend>'. "
+                        "Run hax_syntax_check and hax_frontend_check first.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -125,8 +147,8 @@ async def list_tools() -> list[Tool]:
                     },
                     "backend": {
                         "type": "string",
-                        "enum": ["lean4", "coq", "fstar", "proverif"],
-                        "description": "Target proof assistant"
+                        "enum": HAX_BACKENDS,
+                        "description": "hax backend name"
                     },
                     "output_dir": {
                         "type": "string",
@@ -135,7 +157,8 @@ async def list_tools() -> list[Tool]:
                     "modules": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Specific modules to extract (optional)"
+                        "description": "Item patterns to extract with their dependencies "
+                                       "(passed as `-i '+pat ...'`; optional)"
                     }
                 },
                 "required": ["backend"]
@@ -165,8 +188,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     if name == "hax_syntax_check":
         return await handle_syntax_check(arguments)
-    elif name == "hax_cargo_check":
-        return await handle_cargo_check(arguments)
+    elif name == "hax_frontend_check":
+        return await handle_frontend_check(arguments)
     elif name == "hax_extract":
         return await handle_extract(arguments)
     elif name == "hax_supported_features":
@@ -182,6 +205,7 @@ async def handle_syntax_check(args: dict[str, Any]) -> list[TextContent]:
     file_path = args.get("file_path")
     source = args.get("source")
     errors_only = args.get("errors_only", False)
+    linter.include_tests = bool(args.get("include_tests", False))
 
     if file_path:
         path = Path(file_path)
@@ -210,14 +234,15 @@ async def handle_syntax_check(args: dict[str, Any]) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
-async def handle_cargo_check(args: dict[str, Any]) -> list[TextContent]:
-    """Run cargo hax check."""
+async def handle_frontend_check(args: dict[str, Any]) -> list[TextContent]:
+    """Run `cargo hax json`: the full frontend without a backend."""
     crate_path = args.get("crate_path", ".")
     package = args.get("package")
 
-    cmd = ["cargo", "hax", "check"]
+    cmd = ["cargo", "hax"]
     if package:
-        cmd.extend(["-p", package])
+        cmd.extend(["-C", "-p", package, ";"])
+    cmd.append("json")
 
     try:
         result = await asyncio.create_subprocess_exec(
@@ -238,10 +263,7 @@ async def handle_cargo_check(args: dict[str, Any]) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(output, indent=2))]
 
     except FileNotFoundError:
-        return [TextContent(
-            type="text",
-            text="Error: 'cargo hax' not found. Install with: cargo install hax-frontend"
-        )]
+        return [TextContent(type="text", text=INSTALL_HINT)]
     except Exception as e:
         return [TextContent(type="text", text=f"Error running cargo hax: {e}")]
 
@@ -253,21 +275,22 @@ async def handle_extract(args: dict[str, Any]) -> list[TextContent]:
     output_dir = args.get("output_dir")
     modules = args.get("modules", [])
 
-    # Map backend names
-    backend_map = {
-        "lean4": "lean4",
-        "coq": "coq",
-        "fstar": "fstar",
-        "proverif": "proverif",
-    }
+    if backend not in HAX_BACKENDS:
+        return [TextContent(
+            type="text",
+            text=f"Error: unknown backend '{backend}'. Known backends: {', '.join(HAX_BACKENDS)}",
+        )]
 
-    cmd = ["cargo", "hax", "into", backend_map.get(backend, backend)]
+    # Options of `into` precede the backend subcommand.
+    cmd = ["cargo", "hax", "into"]
 
     if output_dir:
-        cmd.extend(["-o", output_dir])
+        cmd.extend(["--output-dir", output_dir])
 
-    for module in modules:
-        cmd.extend(["--include", module])
+    if modules:
+        cmd.extend(["-i", " ".join(f"+{m}" for m in modules)])
+
+    cmd.append(_BACKEND_SUBCOMMAND[backend])
 
     try:
         result = await asyncio.create_subprocess_exec(
@@ -289,10 +312,7 @@ async def handle_extract(args: dict[str, Any]) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(output, indent=2))]
 
     except FileNotFoundError:
-        return [TextContent(
-            type="text",
-            text="Error: 'cargo hax' not found. Install with: cargo install hax-frontend"
-        )]
+        return [TextContent(type="text", text=INSTALL_HINT)]
     except Exception as e:
         return [TextContent(type="text", text=f"Error running extraction: {e}")]
 

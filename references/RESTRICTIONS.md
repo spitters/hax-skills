@@ -12,7 +12,7 @@ Complete reference for Rust features supported by Hax.
 | `u8`, `u16`, `u32`, `u64`, `u128` | ✅ Full | |
 | `i8`, `i16`, `i32`, `i64`, `i128` | ✅ Full | |
 | `usize`, `isize` | ✅ Full | Extracted as bounded integers |
-| `f32`, `f64` | ⚠️ Limited | Backend-dependent support |
+| `f32`, `f64` | ❌ No | No backend supports floating point |
 | `char` | ✅ Full | |
 | `()` | ✅ Full | Unit type |
 | `!` | ❌ No | Never type not supported |
@@ -42,8 +42,8 @@ Complete reference for Rust features supported by Hax.
 | `Mutex<T>`, `RwLock<T>` | ❌ No | Single-threaded extraction |
 | `HashMap<K, V>` | ❌ No | Use arrays with linear search |
 | `HashSet<T>` | ❌ No | Use sorted arrays |
-| `Option<T>` | ✅ Full | Define your own or use core |
-| `Result<T, E>` | ✅ Full | Define your own or use core |
+| `Option<T>` | ✅ Full | The `core` type is supported directly |
+| `Result<T, E>` | ✅ Full | The `core` type is supported directly |
 
 ## Language Features
 
@@ -147,7 +147,8 @@ for i in (0..10).rev() { }  // reverse
 for element in arr.iter() { }
 for (i, element) in arr.iter().enumerate() { }
 
-// While loops
+// While loops (accepted; a bounded `for` loop is preferred because the
+// backends prove termination and invariants for it with less effort)
 while condition { }
 
 // Loop with break
@@ -172,8 +173,13 @@ let Some(x) = opt else { return None; };
 ### Limited/Unsupported Patterns
 
 ```rust
-// ⚠️ Unbounded while (needs invariant)
-while some_condition() { }  // May need #[hax::loop_invariant]
+// ⚠️ Unbounded while: accepted by hax, but downstream proofs need an
+// invariant, stated as the first statement of the loop body.
+// Prefer a bounded `for` loop where the iteration count is known.
+while some_condition() {
+    hax_lib::loop_invariant!(|i: usize| i <= N);
+    // ...
+}
 
 // ❌ Iterator chains (complex ones)
 arr.iter().filter(|x| **x > 0).map(|x| x * 2).collect()
@@ -371,10 +377,19 @@ use hax_lib as hax;
 
 #[hax::requires(precondition)]      // Precondition
 #[hax::ensures(|r| postcondition)]  // Postcondition
-#[hax::loop_invariant(|vars| inv)]  // Loop invariant
 #[hax::opaque]                       // Hide from extraction
 #[hax::exclude]                      // Exclude from extraction
 #[hax::refinement_type(predicate)]  // Refinement type
+```
+
+Loop invariants are not attributes. They are written as a function-like
+macro on the first line of the loop body, taking the loop variable:
+
+```rust
+for i in 0..n {
+    hax_lib::loop_invariant!(|i: usize| acc <= i * MAX);
+    // body
+}
 ```
 
 ### Supported Standard Attributes
@@ -415,7 +430,7 @@ panic!();    // Becomes unreachable
 4. **Avoid heap allocation** - stack-allocate everything
 5. **Keep functions pure** - minimize side effects
 6. **Add specifications** - requires/ensures for verification
-7. **Test with `cargo hax check`** before full extraction
+7. **Test with `cargo hax json`** (frontend only) before full extraction
 8. **Use const generics** for flexible array sizes
 9. **Derive Clone/Copy** where possible
 10. **Avoid complex lifetimes** - keep borrowing simple
