@@ -11,7 +11,7 @@ from hax_treesitter.lint import HaxLinter
 TESTS = Path(__file__).parent
 VIOLATIONS = TESTS / "violations.rs"
 
-# Categories the query file reports on violations.rs (25 errors, 21 warnings).
+# Categories the query file reports on violations.rs (20 errors, 26 warnings).
 EXPECTED_CATEGORIES = {
     "atomic", "dbg", "dyn_trait", "expect", "extern_block", "float_f32",
     "float_f64", "format_macro", "heap_arc", "heap_box", "heap_hashmap",
@@ -58,8 +58,8 @@ def run_cli(*args: str) -> subprocess.CompletedProcess:
 def test_violations_categories():
     found = list(HaxLinter().lint_file(VIOLATIONS))
     assert {v.category for v in found} == EXPECTED_CATEGORIES
-    assert sum(v.severity == "error" for v in found) == 25
-    assert sum(v.severity == "warning" for v in found) == 21
+    assert sum(v.severity == "error" for v in found) == 20
+    assert sum(v.severity == "warning" for v in found) == 26
 
 
 def test_json_output_parses():

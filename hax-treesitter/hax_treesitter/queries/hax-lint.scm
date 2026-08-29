@@ -40,8 +40,8 @@
 ;; ============================================================================
 
 ;; Vec<T>
-((type_identifier) @error.heap_vec
-  (#eq? @error.heap_vec "Vec"))
+((type_identifier) @warning.heap_vec
+  (#eq? @warning.heap_vec "Vec"))
 
 ;; Box<T>
 ((type_identifier) @error.heap_box
@@ -72,10 +72,10 @@
 ;; ============================================================================
 
 ;; loop { ... } - infinite loops
-(loop_expression) @error.unbounded_loop
+(loop_expression) @warning.unbounded_loop
 
 ;; while condition { ... } - potentially unbounded
-(while_expression) @error.while_loop
+(while_expression) @warning.while_loop
 
 ;; ============================================================================
 ;; ASYNC / AWAIT (Not extractable)
@@ -188,8 +188,8 @@
 
 ;; vec! macro
 ((macro_invocation
-  macro: (identifier) @error.vec_macro)
-  (#eq? @error.vec_macro "vec"))
+  macro: (identifier) @warning.vec_macro)
+  (#eq? @warning.vec_macro "vec"))
 
 ;; format! macro (allocates String)
 ((macro_invocation

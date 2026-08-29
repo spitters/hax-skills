@@ -76,7 +76,7 @@ MESSAGES = {
     "error.boxed_dyn": "Box<dyn Trait> is not supported - use enum dispatch or generics",
 
     # Heap allocation
-    "error.heap_vec": "Vec<T> is not supported - use fixed-size arrays [T; N] with const generics",
+    "warning.heap_vec": "Vec<T> is accepted by hax; fixed-size arrays [T; N] keep the extraction total and provable",
     "error.heap_box": "Box<T> is not supported - use stack allocation or references",
     "error.heap_string": "String is not supported - use &str or [u8; N] for fixed-size strings",
     "error.heap_rc": "Rc<T> is not supported - use indices into arrays for shared ownership patterns",
@@ -89,9 +89,9 @@ MESSAGES = {
     "error.heap_binaryheap": "BinaryHeap not supported - use fixed-size array-based heap",
 
     # Loops
-    "error.unbounded_loop": "unbounded 'loop' is not supported - use 'for i in 0..BOUND' with explicit bound",
-    "error.while_loop": "while loops are not supported - convert to bounded 'for' loop",
-    "error.while_let": "while let is not supported - use bounded iteration or match in a for loop",
+    "warning.unbounded_loop": "loop is accepted by hax; a bounded for i in 0..BOUND is preferred for provability",
+    "warning.while_loop": "while is accepted by hax; a bounded for loop is preferred for provability",
+    "warning.while_let": "while let is accepted by hax; bounded iteration is preferred for provability",
 
     # Async
     "error.async_block": "async blocks are not supported in Hax",
@@ -159,8 +159,8 @@ MESSAGES = {
 
     # Allocation functions
     "error.box_new": "Box::new() allocates on heap - use stack allocation",
-    "error.vec_new": "Vec construction not supported - use fixed-size arrays",
-    "error.vec_macro": "vec! macro not supported - use array literals [a, b, c]",
+    "warning.vec_new": "Vec construction is accepted by hax; fixed-size arrays are preferred for provability",
+    "warning.vec_macro": "vec! is accepted by hax; array literals are preferred for provability",
     "error.string_new": "String construction not supported - use &str or [u8; N]",
     "error.format_macro": "format! macro allocates String - not supported",
 
