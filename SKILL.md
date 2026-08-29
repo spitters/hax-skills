@@ -28,6 +28,7 @@ is gitignored (see `README.md`).
 | Frontend check, no backend | `cargo hax json` |
 | Full extraction | `cargo hax into <backend>` |
 | Extract to Lean 4 | `cargo hax into lean` |
+| Extract to Lean 4 through a verified pipeline | `cargo hax json`, then `haxpipeT` from [hax-lean](https://github.com/spitters/hax-lean) |
 | Fix errors | [references/REPAIR.md](references/REPAIR.md) |
 | Restrictions | [references/RESTRICTIONS.md](references/RESTRICTIONS.md) |
 | Reusable designs | [references/PATTERNS.md](references/PATTERNS.md) |
@@ -237,6 +238,7 @@ my-project/
 | `ssprove` | `cargo hax into ssprove` | Coq / SSProve | `both` type (pure + SSProve code) for game-based proofs |
 | `easycrypt` | `cargo hax into easycrypt` | EasyCrypt | game-based proofs |
 | `proverif` | `cargo hax into proverif` | ProVerif | symbolic protocol model |
+| [hax-lean](https://github.com/spitters/hax-lean) `haxpipeT` | `cargo hax json`, then `haxpipeT --hax export.json --emit-certified --name M` | Lean 4 | verified pipeline: the imperative `ImpExpr` is lowered to a purely functional form with a machine-checked `denote`-preservation proof; consumes the frontend export rather than running a hax engine backend |
 
 `lean-refines` emits, per function, `f_pure : σ → α × σ`, `f_state : StateM σ
 α`, and `f_equiv : f_state.run = f_pure`; all output is total and the

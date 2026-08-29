@@ -99,6 +99,23 @@ cd proofs/lean
 lake build
 ```
 
+### Verified Pipeline: hax-lean
+
+[hax-lean](https://github.com/spitters/hax-lean) is a Lean 4 formalization of
+the hax compiler phases with a CLI, `haxpipeT`, that consumes the frontend
+export rather than running a hax engine backend. Each pass carries a
+machine-checked `denote`-preservation proof and the passes compose end-to-end;
+the emitted Lean is surface code plus the post-pipeline `ImpExpr` literals,
+with the hax JSON types preserved.
+
+```bash
+cargo hax json                     # writes hax_frontend_export.json
+haxpipeT --hax hax_frontend_export.json --emit-certified --name MyModule -o out.lean
+```
+
+Building `haxpipeT` and its proofs is described in that repository's
+`BUILDING.md`.
+
 ### Lean-Refines Backend (Dual Pure/Imperative)
 
 The `lean-refines` backend generates both pure functional and imperative (StateM)
