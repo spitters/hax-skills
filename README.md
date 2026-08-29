@@ -9,8 +9,8 @@ formal verification backends (F*, Lean 4, Coq/SSProve, EasyCrypt, ProVerif).
 
 - `SKILL.md` — the skill: frontmatter, quick reference, coding rules, workflow
 - `LEAN_INTEGRATION.md` — Lean 4 proof workflow over extracted code
-- `references/` — restrictions, repair patterns, code patterns, the
-  `lean-refines` backend
+- `references/` — restrictions, repair patterns, code patterns, panic-freedom
+  techniques
 - `examples/` — standalone examples (field arithmetic in Rust + Lean)
 - `hax-local.md` — per-machine paths and build instructions; gitignored, create
   your own

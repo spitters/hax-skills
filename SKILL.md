@@ -33,7 +33,6 @@ is gitignored (see `README.md`).
 | Restrictions | [references/RESTRICTIONS.md](references/RESTRICTIONS.md) |
 | Reusable designs | [references/PATTERNS.md](references/PATTERNS.md) |
 | Prove in Lean | [LEAN_INTEGRATION.md](LEAN_INTEGRATION.md) |
-| lean-refines backend | [references/LEAN_REFINES_BACKEND.md](references/LEAN_REFINES_BACKEND.md) |
 
 Connecting an extraction to a CatCrypt security proof is the `rust-to-uc`
 skill (internal).
@@ -205,45 +204,57 @@ messages and their fixes are in [references/REPAIR.md](references/REPAIR.md).
 ## Project setup
 
 ```toml
-[package]
-name = "my-hax-project"
-version = "0.1.0"
-edition = "2021"
-
+# Cargo.toml
 [dependencies]
 hax-lib = "0.1"
-
-[package.metadata.hax]
-backend.fstar.into = "proofs/fstar"
-backend.lean.into = "proofs/lean"
 ```
+
+Extraction configuration lives in a `hax.toml` at the workspace root: tool
+version pins (`cargo hax tools pin` writes them) and named proof scenarios,
+each storing a complete extraction configuration:
+
+```toml
+# hax.toml
+[scenario.lean]
+backend = "lean"
+```
+
+`cargo hax extract lean` runs that scenario into `proofs/lean/`; a bare
+`cargo hax into lean` extracts the whole crate with the defaults. For the
+`lean` backend the output is a complete Lean package:
 
 ```
 my-project/
 ├── Cargo.toml
-├── src/lib.rs            # hax-compatible Rust
-└── proofs/lean/          # extracted Lean + proofs
-    ├── lakefile.toml
+├── hax.toml
+├── src/lib.rs                    # hax-compatible Rust
+└── proofs/lean/
+    ├── lakefile.toml             # generated, versions pinned to the extraction
+    ├── lean-toolchain
     └── MyProject/
+        ├── Extraction/           # generated, rewritten on every run
+        ├── Verification/         # handwritten proofs, never touched by hax
+        └── Assumptions/          # models of external definitions, seeded once
 ```
+
+The `hax.toml` reference (tool pins, per-crate overrides, scenarios) is the
+[tools page](https://hax.cryspen.com/manual/tools/) of the hax manual.
 
 ## Extraction backends
 
 | Backend | Command | Target | Style |
 |---------|---------|--------|-------|
-| `fstar` | `cargo hax into fstar` | F* | WP-based effects, automated verification |
-| `lean` | `cargo hax into lean` | Lean 4 | pure functional (`RustM`) |
-| `lean-refines` | `cargo hax into lean-refines` | Lean 4 | pure + `StateM` views with an equivalence theorem; fork branch, not upstream |
+| `fstar` | `cargo hax into fstar` | F* | WP-based effects, automated verification; documented in the [manual](https://hax.cryspen.com/manual/fstar/quick_start/) |
+| `lean` | `cargo hax into lean` | Lean 4 | the [Aeneas](https://github.com/AeneasVerif/aeneas) pipeline (charon + aeneas, fetched by `cargo hax tools install`); emits a complete Lean package; documented in the [manual](https://hax.cryspen.com/manual/lean/quick_start/) |
+| `legacy-lean` | `cargo hax into legacy-lean` | Lean 4 | the earlier hax-engine Lean backend over hax-lib's `RustM` library; marked experimental upstream |
 | `coq` | `cargo hax into coq` | Coq | pure |
 | `ssprove` | `cargo hax into ssprove` | Coq / SSProve | `both` type (pure + SSProve code) for game-based proofs |
-| `easycrypt` | `cargo hax into easycrypt` | EasyCrypt | game-based proofs |
-| `proverif` | `cargo hax into proverif` | ProVerif | symbolic protocol model |
+| `easycrypt` | `cargo hax into easycrypt` | EasyCrypt | marked work in progress upstream; no manual page or example |
+| `proverif` | `cargo hax into proverif` | ProVerif | symbolic protocol model; marked work in progress upstream; documented by one example, `examples/proverif-psk` (a PSK protocol with a handwritten `.pv` for comparison and `proverif::replace()` for symbolic replacements), no manual page |
 | [hax-lean](https://github.com/spitters/hax-lean) `haxpipeT` | `cargo hax json`, then `haxpipeT --hax export.json --emit-certified --name M` | Lean 4 | verified pipeline: the imperative `ImpExpr` is lowered to a purely functional form with a machine-checked `denote`-preservation proof; consumes the frontend export rather than running a hax engine backend |
 
-`lean-refines` emits, per function, `f_pure : σ → α × σ`, `f_state : StateM σ
-α`, and `f_equiv : f_state.run = f_pure`; all output is total and the
-equivalence usually closes by `simp` or `refines_equiv`. Details in
-[references/LEAN_REFINES_BACKEND.md](references/LEAN_REFINES_BACKEND.md).
+The backend list and status labels are those of `cryspen/hax` `main`
+(`hax-types/src/cli_options/mod.rs`, `enum Backend`).
 
 ## References
 
@@ -251,7 +262,8 @@ equivalence usually closes by `simp` or `refines_equiv`. Details in
 - [references/REPAIR.md](references/REPAIR.md) — fixing extraction errors
 - [references/PATTERNS.md](references/PATTERNS.md) — reusable designs
 - [LEAN_INTEGRATION.md](LEAN_INTEGRATION.md) — proof workflow
-- [references/LEAN_REFINES_BACKEND.md](references/LEAN_REFINES_BACKEND.md) — dual-view backend
+- [references/PANIC_FREEDOM.md](references/PANIC_FREEDOM.md) — proving panic freedom over extracted code
+- [hax-lean](https://github.com/spitters/hax-lean) — verified extraction pipeline to Lean 4
 - [examples/field_u256.rs](examples/field_u256.rs) — 256-bit field arithmetic
 - [hax documentation](https://hax.rs), [hax on GitHub](https://github.com/cryspen/hax)
 - [lean-lsp-mcp](https://github.com/oOo0oOo/lean-lsp-mcp),

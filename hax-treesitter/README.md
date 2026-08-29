@@ -76,7 +76,7 @@ stdio:
 - `hax_frontend_check(crate_path, package)`: runs `cargo hax json`, the full
   hax frontend without a backend.
 - `hax_extract(crate_path, backend, output_dir, modules)`: runs
-  `cargo hax into <backend>`; backends are `lean`, `lean-refines`, `fstar`,
+  `cargo hax into <backend>`; backends are `lean`, `legacy-lean`, `fstar`,
   `coq`, `ssprove`, `easycrypt`, `proverif`.
 - `hax_supported_features(category)`: a summary of supported and
   unsupported Rust features.

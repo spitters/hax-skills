@@ -1,6 +1,10 @@
-# Panic-Freedom Proofs for the `lean` Backend
+# Panic-Freedom Proofs over hax-lib's `RustM` (the `legacy-lean` backend)
 
-The `lean` backend extracts Rust to monadic `RustM` computations. Panic freedom is
+The `legacy-lean` backend extracts Rust to monadic `RustM` computations from
+hax-lib's Lean library; the `lean` backend (Aeneas pipeline) produces pure
+functions whose obligations are covered by the hax manual's
+[panic-freedom tutorial](https://hax.cryspen.com/manual/lean/tutorial/panic-freedom/).
+For `RustM` code, panic freedom is
 stated as a Hoare triple `⦃ ⌜ P ⌝ ⦄ f ⦃ ⇓ r => ⌜ Q r ⌝ ⦄` or as a `Spec` structure
 with `pureRequires`, `pureEnsures`, and `contract` fields. This document describes
 the decision procedures that close those goals and when each applies.

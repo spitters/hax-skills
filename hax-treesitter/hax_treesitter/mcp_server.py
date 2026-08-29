@@ -57,9 +57,9 @@ except ImportError:
 # Initialize server
 server = Server("hax-tools")
 
-# Backends accepted by `cargo hax into`. `lean-refines` is provided by the
-# cryspen/hax fork used by hax-lean.
-HAX_BACKENDS = ["lean", "lean-refines", "fstar", "coq", "ssprove", "easycrypt", "proverif"]
+# Backends accepted by `cargo hax into` (cryspen/hax main). `easycrypt` and
+# `proverif` are marked work in progress upstream.
+HAX_BACKENDS = ["lean", "legacy-lean", "fstar", "coq", "ssprove", "easycrypt", "proverif"]
 
 # `cargo hax into` subcommand per backend name.
 _BACKEND_SUBCOMMAND = {b: b for b in HAX_BACKENDS}

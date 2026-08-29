@@ -73,7 +73,13 @@ The [lean4-theorem-proving skill](https://github.com/cameronfreer/lean4-theorem-
 
 ## Extraction Workflows
 
-### Standard Lean Backend
+### The `lean` Backend (Aeneas pipeline)
+
+`cargo hax into lean` runs the [Aeneas](https://github.com/AeneasVerif/aeneas)
+pipeline: the `charon` and `aeneas` binaries are downloaded on first use
+(`cargo hax tools install` pre-installs them; `cargo hax tools show` reports the
+active versions). The manual's [quick start](https://hax.cryspen.com/manual/lean/quick_start/)
+and [tutorial](https://hax.cryspen.com/manual/lean/tutorial/) are the reference.
 
 #### Step 1: Check the Rust Code with the Hax Frontend
 
@@ -88,9 +94,18 @@ cargo hax json
 # Extract entire crate
 cargo hax into lean
 
-# Extract specific modules
-cargo hax -i "+my_module::**" into lean
+# Extract from one function onwards
+cargo hax into --charon-args="--start-from my_crate::my_module::my_function" lean
+
+# Run a named proof scenario from hax.toml
+cargo hax extract my-scenario
 ```
+
+The output is a complete Lean package under `proofs/lean/` (or
+`proofs/<scenario>/lean/`): the extracted modules in `<Pkg>/Extraction/`, a
+generated `lakefile.toml` and `lean-toolchain` pinned to matching versions, a
+`<Pkg>/Verification/` folder for handwritten proofs that hax never touches,
+and `<Pkg>/Assumptions/` for models of external definitions, seeded once.
 
 #### Step 3: Build Extracted Code
 
@@ -98,6 +113,13 @@ cargo hax -i "+my_module::**" into lean
 cd proofs/lean
 lake build
 ```
+
+A successful build does not by itself prove panic freedom; see
+`references/PANIC_FREEDOM.md`.
+
+The earlier hax-engine Lean backend is still available as
+`cargo hax into legacy-lean` (marked experimental upstream); it extracts to
+hax-lib's `RustM` library.
 
 ### Verified Pipeline: hax-lean
 
@@ -116,18 +138,6 @@ haxpipeT --hax hax_frontend_export.json --emit-certified --name MyModule -o out.
 Building `haxpipeT` and its proofs is described in that repository's
 `BUILDING.md`.
 
-### Lean-Refines Backend (Dual Pure/Imperative)
-
-The `lean-refines` backend generates both pure functional and imperative (StateM)
-definitions, plus equivalence proofs. It lives on a fork of hax, not in the
-upstream release. See `references/LEAN_REFINES_BACKEND.md` for details.
-
-```bash
-cargo hax into lean-refines
-# Output: proofs/lean-refines/extraction/<Crate_name>.lean
-```
-
-Each Rust function `f` produces 3 declarations: `f_pure`, `f_state`, `f_equiv`.
 
 ## Understanding Extracted Code
 
