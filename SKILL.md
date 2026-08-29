@@ -246,7 +246,7 @@ The `hax.toml` reference (tool pins, per-crate overrides, scenarios) is the
 |---------|---------|--------|-------|
 | `fstar` | `cargo hax into fstar` | F* | WP-based effects, automated verification; documented in the [manual](https://hax.cryspen.com/manual/fstar/quick_start/) |
 | `lean` | `cargo hax into lean` | Lean 4 | the [Aeneas](https://github.com/AeneasVerif/aeneas) pipeline (charon + aeneas, fetched by `cargo hax tools install`); emits a complete Lean package; documented in the [manual](https://hax.cryspen.com/manual/lean/quick_start/) |
-| `legacy-lean` | `cargo hax into legacy-lean` | Lean 4 | the earlier hax-engine Lean backend over hax-lib's `RustM` library; marked experimental upstream |
+| Cryspen hax Lean backend | `cargo hax into legacy-lean` | Lean 4 | the [hax-engine Lean backend](https://github.com/cryspen/hax/tree/main/engine/backends/lean) over [hax-lib's Lean library](https://github.com/cryspen/hax/tree/main/hax-lib/proof-libs/lean) (`RustM`, `hax_bv_decide`, `hax_mvcgen`); the subcommand name is upstream's |
 | `coq` | `cargo hax into coq` | Coq | pure |
 | `ssprove` | `cargo hax into ssprove` | Coq / SSProve | `both` type (pure + SSProve code) for game-based proofs |
 | `easycrypt` | `cargo hax into easycrypt` | EasyCrypt | marked work in progress upstream; no manual page or example |

@@ -117,9 +117,11 @@ lake build
 A successful build does not by itself prove panic freedom; see
 `references/PANIC_FREEDOM.md`.
 
-The earlier hax-engine Lean backend is still available as
-`cargo hax into legacy-lean` (marked experimental upstream); it extracts to
-hax-lib's `RustM` library.
+The Cryspen hax Lean backend — the
+[hax-engine backend](https://github.com/cryspen/hax/tree/main/engine/backends/lean)
+extracting to [hax-lib's Lean library](https://github.com/cryspen/hax/tree/main/hax-lib/proof-libs/lean)
+(`RustM`) — is invoked as `cargo hax into legacy-lean`; the subcommand name is
+upstream's. Its proof techniques are in `references/PANIC_FREEDOM.md`.
 
 ### Verified Pipeline: hax-lean
 

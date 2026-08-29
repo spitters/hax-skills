@@ -1,7 +1,9 @@
-# Panic-Freedom Proofs over hax-lib's `RustM` (the `legacy-lean` backend)
+# Panic-Freedom Proofs over hax-lib's `RustM` (Cryspen hax Lean backend)
 
-The `legacy-lean` backend extracts Rust to monadic `RustM` computations from
-hax-lib's Lean library; the `lean` backend (Aeneas pipeline) produces pure
+The Cryspen hax Lean backend (`cargo hax into legacy-lean`;
+[engine](https://github.com/cryspen/hax/tree/main/engine/backends/lean),
+[library](https://github.com/cryspen/hax/tree/main/hax-lib/proof-libs/lean))
+extracts Rust to monadic `RustM` computations; the `lean` backend (Aeneas pipeline) produces pure
 functions whose obligations are covered by the hax manual's
 [panic-freedom tutorial](https://hax.cryspen.com/manual/lean/tutorial/panic-freedom/).
 For `RustM` code, panic freedom is
