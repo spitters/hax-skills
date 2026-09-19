@@ -33,6 +33,7 @@ is gitignored (see `README.md`).
 | Restrictions | [references/RESTRICTIONS.md](references/RESTRICTIONS.md) |
 | Reusable designs | [references/PATTERNS.md](references/PATTERNS.md) |
 | Prove in Lean | [LEAN_INTEGRATION.md](LEAN_INTEGRATION.md) |
+| The three roles of a `haxpipeT` spec crate, and what to recheck when the crate changes | [references/SPEC_CRATE_ROLES.md](references/SPEC_CRATE_ROLES.md) |
 
 Connecting an extraction to a CatCrypt security proof is the `rust-to-uc`
 skill (internal).
@@ -127,6 +128,14 @@ struct DynamicBuffer { data: Vec<u8> }                        // ❌ heap
 borrows are not. Prefer value-passing (`x = f(x)`) for state threaded across
 calls.
 
+For `haxpipeT`, a mutation reaches the caller for one shape only: a function
+with result `()` and exactly one `&mut` parameter. Write everything else
+value-returning (`fn step(x: State) -> (State, u8)`), pass a byte offset in
+place of a mutable sub-slice (`pack(w, out, at)`, not `pack(w, &mut out[a..b])`),
+and consume an `Option` with `match`.
+[references/SPEC_CRATE_ROLES.md](references/SPEC_CRATE_ROLES.md) has the table
+of forms.
+
 ## Contracts
 
 `hax_lib` attributes become proof obligations in the backend:
@@ -201,6 +210,17 @@ cd proofs/lean && lake build
 [LEAN_INTEGRATION.md](LEAN_INTEGRATION.md) covers the Lean side; error
 messages and their fixes are in [references/REPAIR.md](references/REPAIR.md).
 
+### 6. When the Rust changes later
+
+An extraction with `haxpipeT` is read in three roles: as the source the
+compiler lowers, as the anchor of a security proof, and as the specification
+validated against published vectors. A change to the Rust is complete when all
+three have been rechecked: the crate's tests, a re-extraction whose `<X>Deps`
+class lists only external primitives, and a build of every module that
+transitively imports the regenerated file. Commit the Rust, the regenerated
+extraction and the repaired consumers together.
+[references/SPEC_CRATE_ROLES.md](references/SPEC_CRATE_ROLES.md) has the steps.
+
 ## Project setup
 
 ```toml
@@ -261,6 +281,7 @@ The backend list and status labels are those of `cryspen/hax` `main`
 - [references/RESTRICTIONS.md](references/RESTRICTIONS.md) — feature support
 - [references/REPAIR.md](references/REPAIR.md) — fixing extraction errors
 - [references/PATTERNS.md](references/PATTERNS.md) — reusable designs
+- [references/SPEC_CRATE_ROLES.md](references/SPEC_CRATE_ROLES.md) — the three roles of a `haxpipeT` spec crate and the recheck after a change
 - [LEAN_INTEGRATION.md](LEAN_INTEGRATION.md) — proof workflow
 - [references/PANIC_FREEDOM.md](references/PANIC_FREEDOM.md) — proving panic freedom over extracted code
 - [hax-lean](https://github.com/spitters/hax-lean) — verified extraction pipeline to Lean 4
