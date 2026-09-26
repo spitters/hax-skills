@@ -193,14 +193,8 @@ length), `Vector.toArray_size`, `Fin.val_mk` (bounded index types),
 | `bv_decide` | Yes (SAT) | Yes (kernel) | Built into Lean |
 | `grind` | No | Yes (kernel) | Built into Lean |
 | `omega` | No (Nat/Int) | Yes | Built into Lean |
-| `lean-smt` (cvc5) | Translation complete; reconstruction partial | Partial | External |
-| `lean-auto` (z3/cvc5) | Via backend | No (trusted) | External |
-| `duper` | No | Yes | External |
 
-Use `bv_decide`, `grind`, and `omega` first: they are built in and kernel-checked.
-External SMT tools track a specific Lean version and, for bitvectors, either trust
-the solver or reconstruct only part of the theory; check a tool's own
-compatibility statement against the Lean version pinned by hax-lib before
-adopting it. `lean-smt` is the one to watch for bitvector proof reconstruction:
-when its bitvector test suite passes without `sorry` for multiplication and
-shifts, it would cover the `u64` cases that currently need `native_decide`.
+Use `bv_decide`, `grind`, and `omega`: they are built in and kernel-checked.
+External SMT and superposition tools are not dependencies of this workflow;
+they track a specific Lean version and, for bitvectors, either trust the solver
+or reconstruct only part of the theory.
